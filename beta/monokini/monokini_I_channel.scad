@@ -76,6 +76,8 @@ surname_font = str(Font , ":style=", Font_Style);
 /*[Advanced Options]*/
 //Color of part (color names found at https://en.wikipedia.org/wiki/Web_colors)
 Global_Color = "SlateBlue";
+//Supression string Key: N - None, L - Left suppressed, R - Right suppressed, B - Both suppressed. With multiple channels, separate them with comma.
+Suppress_Connectors = ""; // 
 
 /*[Hidden]*/
 //Units of measurement (in mm) for hole and length spacing. Multiboard is 25mm. Untested
@@ -93,6 +95,9 @@ Nudge = 0.01; //nudge the profile to avoid z-fighting
 snapWallThickness = 2;
 gripSize = 15;
 
+Suppress_List = str_split(upcase(Suppress_Connectors), ",");
+//Convert the string to a list of strings. This is used to determine if the connector should be suppressed or not.
+
 ///*[Visual Options]*/
 Debug_Show_Grid = false;
 //View the parts as they attach. Note that you must disable this before exporting for printing. 
@@ -101,9 +106,9 @@ Show_Attached = false;
 
 //module mw_plate_1 {
 //union() {
-diff() {
-color_this(Global_Color) 
-  monokiniChannel(lengthMM = lengthMM, widthMM = channelWidth, heightMM = Channel_Total_Height, anchor = CENTER, orient = TOP, spin = 0)
+color_this(Global_Color) diff() {
+
+  monokiniChannel(lengthMM = lengthMM, widthMM = channelWidth, heightMM = Channel_Total_Height, anchor = CENTER, orient = TOP, spin = 0, suppress = Suppress_List[0]) //str_pad(Suppress_List[0], Channel_Length_Units, "N")
 
   if (Cord_Side_Cutouts != "None" && Number_of_Cord_Cutouts > 0) {
     /*
@@ -114,13 +119,13 @@ color_this(Global_Color)
                     }
                 }
                 */
-                tag("remove") attach(CENTER) up(snapWallThickness) fwd(Shift_Cutouts_Forward_or_Back) {
+                tag("remove") color_this(Global_Color) attach(CENTER) up(snapWallThickness) fwd(Shift_Cutouts_Forward_or_Back) {
                     ycopies(n=Number_of_Cord_Cutouts, spacing=Distance_Between_Cutouts) {
                         left(Cord_Side_Cutouts == "Right Side" ? channelWidth/2 : 0)
                         left(Cord_Side_Cutouts == "Left Side" ? -channelWidth/2 : 0)
                             // cuboid([Cord_Side_Cutouts == "Both Sides" ? channelWidth + 5 : channelWidth/2, Cord_Cutout_Width, Channel_Total_Height-snapWallThickness], chamfer = 2, edges=[BOT+FWD, BOT+BACK], orient=TOP, anchor=BOTTOM);
-                            up(snapWallThickness) cylinder(h = Cord_Side_Cutouts == "Both Sides" ? channelWidth + 5 : channelWidth/2, r = Cord_Cutout_Width/2, orient=LEFT, anchor=LEFT, $fn=50)
-                            attach(RIGHT,BOT, overlap=Cord_Cutout_Width/2) cube([Cord_Side_Cutouts == "Both Sides" ? channelWidth + 5 : channelWidth/2, Cord_Cutout_Width, Channel_Total_Height-snapWallThickness-Cord_Cutout_Width/2], spin=90);
+                            up(snapWallThickness) color_this(Global_Color) cylinder(h = Cord_Side_Cutouts == "Both Sides" ? channelWidth + 5 : channelWidth/2, r = Cord_Cutout_Width/2, orient=LEFT, anchor=LEFT, $fn=50)
+                            attach(RIGHT,BOT, overlap=Cord_Cutout_Width/2) color_this(Global_Color) cube([Cord_Side_Cutouts == "Both Sides" ? channelWidth + 5 : channelWidth/2, Cord_Cutout_Width, Channel_Total_Height-snapWallThickness-Cord_Cutout_Width/2], spin=90);
                     }
                 }
 
@@ -128,6 +133,9 @@ color_this(Global_Color)
             
  if(Add_Label) tag("remove") recolor(Text_Color)
     right(Text_x_coordinate) text3d(Text, size = Text_size, h=Text_Depth > 0.05 ? Nudge+Text_Depth : 0.05, font = surname_font, atype="ycenter", anchor=CENTER, spin=-90, orient=BOT);
+if(Add_Label) tag("keep") recolor(Text_Color)
+    right(Text_x_coordinate) text3d(Text, size = Text_size, h=Text_Depth > 0.05 ? Text_Depth : 0.05, font = surname_font, atype="ycenter", anchor=CENTER, spin=-90, orient=BOT);
+
 }
 
 /*
@@ -186,9 +194,9 @@ module monokiniGrip(widthMM = 26.4, heightMM = 22) {
     }
 }
 
-module monokiniChannel(lengthMM = 28, widthMM = 26.4, heightMM = 22, anchor, spin, orient) {
+module monokiniChannel(lengthMM = 28, widthMM = 26.4, heightMM = 22, anchor, spin, orient, suppress = "") {
     
-    
+    // echo("Suppress: ", suppress);
     // zrot(180) xrot(90) path_extrude( monokiniProfile()) square([2,channelWidth]); //path_extrude(path, shape, anchor=BOTTOM, orient=TOP, spin=0, size=[2,2], $fn=50)
     monokiniProfile = [
             [-1*widthMM/2, heightMM-baseHeight],
@@ -219,8 +227,11 @@ module monokiniChannel(lengthMM = 28, widthMM = 26.4, heightMM = 22, anchor, spi
             right(Grid_Size/2)
             zrot(90) 
             down(22-heightMM) {
-                monokiniGrip(widthMM = widthMM);
-                xflip() monokiniGrip(widthMM = widthMM);
+            // echo("Index: ", $idx, " Suppress: ", suppress[$idx]);
+                if (suppress[$idx] != "B" && suppress[$idx] != "L")
+                    monokiniGrip(widthMM = widthMM);
+                if (suppress[$idx] != "B" && suppress[$idx] != "R")
+                    xflip() monokiniGrip(widthMM = widthMM);
             }
         }
     } children();
